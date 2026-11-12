@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shared on foodDo</title>
+<meta name="apple-itunes-app" content="app-id=APP_STORE_ID">
+<style>
+  :root { --t:#FF642D; --ink:#202329; --cream:#FAF6F0; --mut:#6B6F78; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: ui-rounded, -apple-system, system-ui, sans-serif; background: var(--cream); color: var(--ink);
+         min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 28px 20px; }
+  main { width: 100%; max-width: 420px; text-align: center; }
+  .icon { width: 72px; height: 72px; border-radius: 18px; background: var(--t); display: grid; place-items: center; margin: 0 auto 14px; }
+  h1 { font-size: 28px; font-weight: 900; line-height: 1.15; }
+  .sub { color: var(--mut); font-weight: 600; margin-top: 6px; }
+  .card { background: var(--ink); color: #fff; border-radius: 22px; padding: 18px; margin: 20px 0 12px; text-align: left; }
+  .card .cap { font-size: 12px; font-weight: 800; letter-spacing: .6px; opacity: .7; }
+  .card .kcal { font-size: 34px; font-weight: 900; margin-top: 4px; }
+  .card .kcal small { font-size: 15px; opacity: .7; }
+  .macros { display: flex; gap: 14px; margin-top: 8px; font-weight: 800; font-size: 15px; }
+  .macros b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 10px; font-size: 11px; margin-right: 4px; color: #fff; }
+  ul { list-style: none; background: #fff; border-radius: 16px; text-align: left; margin-bottom: 18px; }
+  li { display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #EEEAE3; font-weight: 600; }
+  li:last-child { border: 0; }
+  li span { color: var(--mut); }
+  a.btn { display: block; padding: 16px; border-radius: 16px; font-weight: 800; font-size: 18px; text-decoration: none; margin-top: 10px; }
+  .primary { background: var(--t); color: #fff; }
+  .secondary { color: var(--t); }
+  .note { color: var(--mut); font-size: 13px; margin-top: 18px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <div class="icon"><svg width="40" height="40" viewBox="0 0 40 40"><path d="M9 21l7 7L31 9" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  <h1 id="name">Shared on foodDo</h1>
+  <p class="sub" id="kind">Open this link on your iPhone</p>
+  <div class="card hidden" id="card">
+    <div class="cap" id="cap">PER SERVING</div>
+    <div class="kcal"><span id="kcal">0</span> <small>kcal</small></div>
+    <div class="macros">
+      <span><b style="background:#FF642D">P</b><span id="p">0</span>g</span>
+      <span><b style="background:#4A7DFF">C</b><span id="c">0</span>g</span>
+      <span><b style="background:#F0BE1A;color:#202329">F</b><span id="f">0</span>g</span>
+    </div>
+  </div>
+  <ul id="parts" class="hidden"></ul>
+  <a class="btn primary" id="open" href="#">Open in foodDo</a>
+  <a class="btn secondary" href="https://apps.apple.com/app/idAPP_STORE_ID">Get foodDo on the App Store</a>
+  <p class="note">foodDo — Eat it. Tick it.</p>
+</main>
+<script>
+(async () => {
+  const data = location.hash.slice(1);
+  if (!data) return;
+  document.getElementById('open').href = 'fooddo://s#' + data;
+  try {
+    let b64 = data.replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const bytes = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    const item = JSON.parse(await new Response(stream).text());
+    const p = item.portioning || {};
+    const amount = item.amount > 0 ? item.amount : (p.basis === 'perServing' || p.servingSize > 0 ? 1 : 100);
+    const unit = item.amount > 0 ? item.unitRaw : (p.basis === 'perServing' || p.servingSize > 0 ? 'serving' : 'grams');
+    let factor;
+    if (p.basis === 'perServing') factor = unit === 'serving' || !(p.servingSize > 0) ? amount : amount / p.servingSize;
+    else factor = (unit === 'serving' ? amount * p.servingSize : amount) / 100;
+    const v = item.values || {};
+    const r = x => Math.round((x || 0) * factor);
+    document.getElementById('name').textContent = item.name;
+    document.title = item.name + ' — foodDo';
+    const count = (item.components || []).length;
+    document.getElementById('kind').textContent = item.isMeal
+      ? (count ? `A meal · ${count} food${count === 1 ? '' : 's'}` : 'A meal')
+      : (item.brand || 'A food');
+    document.getElementById('cap').textContent = item.isMeal ? 'WHOLE MEAL' : 'AS SHARED';
+    document.getElementById('kcal').textContent = r(v.calories).toLocaleString();
+    document.getElementById('p').textContent = r(v.protein);
+    document.getElementById('c').textContent = r(v.carbs);
+    document.getElementById('f').textContent = r(v.fat);
+    document.getElementById('card').classList.remove('hidden');
+    if (count) {
+      const list = document.getElementById('parts');
+      for (const part of item.components) {
+        const li = document.createElement('li');
+        const unitName = part.unitRaw === 'grams' ? 'g' : part.unitRaw === 'millilitres' ? 'ml' : (part.portioning.servingName || 'serving');
+        li.innerHTML = '<div></div><span></span>';
+        li.firstChild.textContent = part.name;
+        li.lastChild.textContent = `${Math.round(part.amount * 10) / 10} ${unitName}`;
+        list.appendChild(li);
+      }
+      list.classList.remove('hidden');
+    }
+  } catch (e) { /* leave the basic page */ }
+})();
+</script>
+</body>
+</html>
