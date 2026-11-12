@@ -1,0 +1,13 @@
+   {
+     "applinks": {
+       "details": [
+         {
+           "appIDs": ["BR87JJKPVM.app.fooddo.fooddo"],
+           "components": [
+             { "/": "/s", "comment": "Shared foods and meals" },
+             { "/": "/s/*", "comment": "Shared foods and meals" }
+           ]
+         }
+       ]
+     }
+   }
